@@ -34,14 +34,25 @@ const PORT = process.env.PORT || 5000;
 // MongoDB connection with better error handling and timeout
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/tvm-academy';
+    let mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/tvm-academy';
+    
+    // Ensure we're using the correct database name
+    if (mongoURI.includes('/test?')) {
+      mongoURI = mongoURI.replace('/test?', '/tvm-academy?');
+      console.log('🔧 Updated database name from "test" to "tvm-academy"');
+    }
+    
+    console.log('🔗 Attempting MongoDB connection...');
+    console.log('📡 MongoDB URI (masked):', mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'));
     
     const conn = await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      serverSelectionTimeoutMS: 10000, // Keep trying to send operations for 10 seconds
       socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      dbName: 'tvm-academy', // Explicitly set database name
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📊 Database: ${conn.connection.name}`);
     
     // Create admin user if needed
     await seed();
