@@ -23,11 +23,17 @@ const corsOptions = {
   ],
   credentials: true,  // Allow cookies/credentials
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // For legacy browser support
 };
 
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 5000;
 
@@ -194,6 +200,28 @@ app.post('/api/test-register', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => res.send({status:'ok', message: 'TVM Academy API'}));
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok', 
+    message: 'TVM Academy API is running',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled',
+    endpoints: {
+      health: '/api/health',
+      debug: '/api/debug',
+      'test-email': '/api/test-email',
+      register: '/api/auth/register (POST)'
+    }
+  });
+});
+
+// Simple connectivity test
+app.get('/api/ping', (req, res) => {
+  res.json({ 
+    status: 'pong', 
+    message: 'Server is reachable',
+    timestamp: new Date().toISOString()
+  });
+});
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
