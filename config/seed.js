@@ -4,11 +4,44 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 
 const seed = async () => {
-  const count = await User.countDocuments();
-  if (count === 0) {
-    // No demo credentials created automatically
-    // Admin users should be created manually through registration
-    console.log('No users found. Please register an admin user through the web interface.');
+  try {
+    const count = await User.countDocuments();
+    console.log(`📊 Current user count: ${count}`);
+    
+    if (count === 0) {
+      // Create default admin user
+      const defaultAdmin = {
+        name: 'TVM Admin',
+        email: 'admin@tvmacademy.com',
+        password: 'Admin@123',
+        role: 'admin',
+        isEmailVerified: true // Admin is pre-verified
+      };
+
+      console.log('👤 Creating default admin user...');
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(defaultAdmin.password, 10);
+      
+      const admin = new User({
+        name: defaultAdmin.name,
+        email: defaultAdmin.email,
+        password: hashedPassword,
+        role: defaultAdmin.role,
+        isEmailVerified: defaultAdmin.isEmailVerified
+      });
+
+      await admin.save();
+      
+      console.log('✅ Default admin user created successfully!');
+      console.log('📧 Admin Email:', defaultAdmin.email);
+      console.log('🔐 Admin Password:', defaultAdmin.password);
+      console.log('⚠️  Please change the admin password after first login!');
+    } else {
+      console.log('✅ Users exist in database, skipping admin creation');
+    }
+  } catch (error) {
+    console.error('❌ Error in seed process:', error.message);
   }
 };
 
