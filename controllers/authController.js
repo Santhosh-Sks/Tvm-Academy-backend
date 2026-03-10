@@ -6,6 +6,11 @@ const emailService = require('../services/emailService');
 
 exports.register = async (req, res) => {
   console.log('🚀 Register endpoint called with body:', req.body);
+  console.log('🔧 Environment check:', {
+    NODE_ENV: process.env.NODE_ENV,
+    DB_CONNECTED: require('mongoose').connection.readyState === 1,
+    JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT_SET'
+  });
   
   const { name, email, password } = req.body;
   
@@ -16,6 +21,18 @@ exports.register = async (req, res) => {
 
   try {
     console.log('📧 Processing registration for email:', email);
+    
+    // Test database connection first
+    console.log('🔍 Testing database connection...');
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ Database not connected, state:', mongoose.connection.readyState);
+      return res.status(500).json({ 
+        message: 'Database connection error. Please try again later.',
+        debug: process.env.NODE_ENV === 'development' ? `DB State: ${mongoose.connection.readyState}` : undefined
+      });
+    }
+    console.log('✅ Database connection confirmed');
     
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase().trim() });

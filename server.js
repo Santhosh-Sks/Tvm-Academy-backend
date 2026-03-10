@@ -124,6 +124,76 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
+// Test email service endpoint
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const emailService = require('./services/emailService');
+    
+    // Test email connection
+    const connectionTest = await emailService.verifyConnection();
+    
+    res.json({
+      status: 'email test',
+      connection: connectionTest ? 'success' : 'failed',
+      config: {
+        host: process.env.EMAIL_HOST || 'not set',
+        port: process.env.EMAIL_PORT || 'not set',
+        user: process.env.EMAIL_USER ? 'set' : 'not set',
+        password: process.env.EMAIL_APP_PASSWORD ? 'set' : 'not set'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'email test failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test registration endpoint (no actual registration)
+app.post('/api/test-register', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email required for test' });
+    }
+
+    // Test database connection
+    const User = require('./models/User');
+    const userCount = await User.countDocuments();
+    
+    // Test OTP model
+    const OTP = require('./models/OTP');
+    const otpCount = await OTP.countDocuments();
+    
+    res.json({
+      status: 'test successful',
+      message: 'All services are working',
+      database: {
+        connected: mongoose.connection.readyState === 1,
+        users: userCount,
+        otps: otpCount
+      },
+      models: {
+        user: 'loaded',
+        otp: 'loaded'
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      status: 'test failed',
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.get('/', (req, res) => res.send({status:'ok', message: 'TVM Academy API'}));
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
