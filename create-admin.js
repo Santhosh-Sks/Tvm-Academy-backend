@@ -6,10 +6,24 @@ const bcrypt = require('bcryptjs');
 
 const createAdmin = async () => {
   try {
-    // Connect to MongoDB
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/tvm-academy';
-    await mongoose.connect(mongoURI);
+    // Connect to MongoDB with correct database
+    let mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/tvm-academy';
+    
+    // Ensure we're using the correct database name
+    if (mongoURI.includes('/test?')) {
+      mongoURI = mongoURI.replace('/test?', '/tvm-academy?');
+      console.log('🔧 Updated database name from "test" to "tvm-academy"');
+    }
+    
+    console.log('🔗 Connecting to MongoDB...');
+    console.log('📡 MongoDB URI (masked):', mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'));
+    
+    await mongoose.connect(mongoURI, {
+      dbName: 'tvm-academy' // Explicitly set database name
+    });
+    
     console.log('✅ Connected to MongoDB');
+    console.log('📊 Database:', mongoose.connection.name);
 
     // Check if admin already exists
     const existingAdmin = await User.findOne({ email: 'admin@tvmacademy.com' });
