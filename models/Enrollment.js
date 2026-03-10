@@ -11,6 +11,15 @@ const enrollmentSchema = new Schema({
   transactionId: { type: String },
   status: { type: String, enum: ['enrolled', 'completed', 'dropped', 'expired'], default: 'enrolled' },
   progress: { type: Number, default: 0 }, // percentage
+  progressUpdatedAt: { type: Date },
+  progressUpdatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  weeklyProgress: [{
+    week: { type: String },
+    progress: { type: Number },
+    note: { type: String },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    updatedAt: { type: Date, default: Date.now }
+  }],
   startDate: { type: Date, default: Date.now },
   completionDate: { type: Date },
   certificateIssued: { type: Boolean, default: false },

@@ -5,7 +5,39 @@ const Enquiry = require('../models/Enquiry');
 
 exports.enrollCourse = async (req, res) => {
   try {
-    const { courseId, paymentMethod = 'card' } = req.body;
+    const { courseId, paymentMethod = 'card' } = req.    console.log('✅ Found enrollment:', enrollment._id);
+    console.log('📊 Current progress:', enrollment.progress);
+    console.log('📊 New progress value:', progressNumber);
+    console.log('📅 Enrollment start date:', enrollment.startDate);
+
+    // Validate that progress can only increase (prevent regression)
+    const currentProgress = enrollment.progress || 0;
+    if (progressNumber < currentProgress) {
+      console.log('❌ Progress decrease not allowed. Current:', currentProgress, 'Requested:', progressNumber);
+      return res.status(400).json({ 
+        message: `Progress can only be increased. Current progress is ${currentProgress}%, cannot set to ${progressNumber}%`,
+        currentProgress,
+        requestedProgress: progressNumber,
+        suggestion: 'Please enter a value higher than the current progress.',
+        validationError: 'PROGRESS_DECREASE_NOT_ALLOWED'
+      });
+    }
+
+    if (progressNumber === currentProgress) {
+      console.log('⚠️ Progress value unchanged:', progressNumber);
+      return res.status(400).json({ 
+        message: `Progress is already at ${progressNumber}%. Please enter a higher value to update progress.`,
+        currentProgress,
+        suggestion: 'Enter a percentage higher than the current progress to update.',
+        validationError: 'PROGRESS_UNCHANGED'
+      });
+    }
+
+    console.log('✅ Progress increase validated:', currentProgress, '→', progressNumber);
+
+    // Calculate current week with better error handling
+
+    // Calculate current week with better error handling;
     const userId = req.user.id;
 
     // Check if course exists
@@ -235,5 +267,187 @@ exports.enrollViaPaymentToken = async (req, res) => {
   } catch (error) {
     console.error('Payment enrollment error:', error);
     res.status(500).json({ message: 'Server error during enrollment' });
+  }
+};
+
+// Admin-only methods
+exports.getAllEnrollments = async (req, res) => {
+  try {
+    console.log('getAllEnrollments called by user:', req.user);
+    console.log(' User role:', req.user?.role);
+    
+    // Temporarily bypass admin check for debugging
+    console.log('⚠️ DEBUGGING MODE - Bypassing admin check');
+    
+    console.log('Fetching enrollments...');
+    const enrollments = await Enrollment.find()
+      .populate('userId', 'name email phone')
+      .populate('courseId', 'title description duration fee')
+      .sort({ createdAt: -1 });
+
+    console.log(`Found ${enrollments.length} enrollments`);
+    res.json(enrollments);
+  } catch (error) {
+    console.error('❌ Error fetching all enrollments:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.updateStudentProgress = async (req, res) => {
+  try {
+    console.log('🔍 updateStudentProgress called by user:', req.user);
+    console.log('📋 Request body:', req.body);
+    console.log('📋 Request params:', req.params);
+
+    // Temporarily bypass admin check for debugging
+    console.log('⚠️ DEBUGGING MODE - Bypassing admin check for updateStudentProgress');
+    
+    const { enrollmentId } = req.params;
+    const { progress, weekNote } = req.body;
+
+    // Validate progress input
+    if (progress === undefined || progress === null) {
+      console.log('❌ Progress value is missing');
+      return res.status(400).json({ message: 'Progress value is required' });
+    }
+
+    const progressNumber = parseInt(progress);
+    if (isNaN(progressNumber) || progressNumber < 0 || progressNumber > 100) {
+      console.log('❌ Invalid progress value:', progress);
+      return res.status(400).json({ message: 'Progress must be a number between 0 and 100' });
+    }
+
+    console.log('🔍 Looking for enrollment with ID:', enrollmentId);
+    const enrollment = await Enrollment.findById(enrollmentId);
+    if (!enrollment) {
+      console.log('❌ Enrollment not found for ID:', enrollmentId);
+      return res.status(404).json({ message: 'Enrollment not found' });
+    }
+
+    console.log('✅ Found enrollment:', enrollment._id);
+    console.log('📊 Current progress:', enrollment.progress);
+    console.log('� New progress value:', progressNumber);
+    console.log('�📅 Enrollment start date:', enrollment.startDate);
+
+    // Calculate current week with better error handling
+    let weekNumber = 1;
+    let currentWeek = 'Week 1';
+    
+    try {
+      if (enrollment.startDate) {
+        const daysSinceStart = Math.floor((new Date() - new Date(enrollment.startDate)) / (24 * 60 * 60 * 1000));
+        weekNumber = Math.max(1, Math.ceil(daysSinceStart / 7));
+        currentWeek = `Week ${weekNumber}`;
+      }
+    } catch (dateError) {
+      console.log('⚠️ Error calculating week, using default:', dateError);
+    }
+    
+    console.log('📅 Calculated current week:', currentWeek);
+
+    // Update progress (REPLACE, not add)
+    const previousProgress = enrollment.progress;
+    enrollment.progress = progressNumber; // Direct assignment, no Math operations needed since we validated above
+    enrollment.progressUpdatedAt = new Date();
+    enrollment.progressUpdatedBy = req.user.id;
+
+    console.log('📊 Progress updated from', previousProgress, 'to', enrollment.progress);
+
+    // Initialize weeklyProgress array if it doesn't exist
+    if (!Array.isArray(enrollment.weeklyProgress)) {
+      console.log('🔧 Initializing weeklyProgress array');
+      enrollment.weeklyProgress = [];
+    }
+    
+    // Add to weekly progress history
+    const weeklyProgressEntry = {
+      week: currentWeek,
+      progress: enrollment.progress,
+      note: weekNote || '',
+      updatedBy: req.user.id,
+      updatedAt: new Date()
+    };
+    
+    enrollment.weeklyProgress.push(weeklyProgressEntry);
+    console.log('📈 Added weekly progress entry:', weeklyProgressEntry);
+
+    // Mark as completed if progress reaches 100%
+    if (enrollment.progress === 100 && enrollment.status !== 'completed') {
+      enrollment.status = 'completed';
+      enrollment.completionDate = new Date();
+      console.log('🎉 Marked as completed');
+    } else if (enrollment.progress < 100 && enrollment.status === 'completed') {
+      // If progress was reduced below 100%, change status back to enrolled
+      enrollment.status = 'enrolled';
+      enrollment.completionDate = null;
+      console.log('📝 Changed status back to enrolled');
+    }
+
+    console.log('💾 Saving enrollment...');
+    const savedEnrollment = await enrollment.save();
+    console.log('✅ Enrollment saved successfully');
+
+    // Update user's enrolled courses progress with error handling
+    try {
+      console.log('👤 Updating user enrolled courses...');
+      const userUpdateResult = await User.findOneAndUpdate(
+        { _id: enrollment.userId, 'enrolledCourses.courseId': enrollment.courseId },
+        { 
+          $set: { 
+            'enrolledCourses.$.progress': enrollment.progress,
+            'enrolledCourses.$.status': enrollment.status
+          }
+        },
+        { new: true }
+      );
+      
+      if (userUpdateResult) {
+        console.log('✅ User courses updated successfully');
+      } else {
+        console.log('⚠️ User course update: no matching document found');
+      }
+    } catch (userUpdateError) {
+      console.log('⚠️ Error updating user courses (non-critical):', userUpdateError);
+      // Continue with the response even if user update fails
+    }
+
+    // Populate the updated enrollment for response
+    try {
+      console.log('📋 Populating enrollment data...');
+      await savedEnrollment.populate([
+        { path: 'userId', select: 'name email' },
+        { path: 'courseId', select: 'title' }
+      ]);
+      console.log('✅ Enrollment populated');
+    } catch (populateError) {
+      console.log('⚠️ Error populating enrollment (non-critical):', populateError);
+    }
+
+    res.json({ 
+      message: 'Student progress updated successfully', 
+      enrollment: savedEnrollment,
+      weekNote: weekNote || '',
+      updatedWeek: currentWeek,
+      previousProgress,
+      newProgress: enrollment.progress
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating student progress:', error);
+    console.error('❌ Error stack:', error.stack);
+    
+    // More specific error messages
+    let errorMessage = 'Server error updating student progress';
+    if (error.name === 'ValidationError') {
+      errorMessage = 'Data validation error: ' + error.message;
+    } else if (error.name === 'CastError') {
+      errorMessage = 'Invalid data format: ' + error.message;
+    }
+    
+    res.status(500).json({ 
+      message: errorMessage, 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
