@@ -137,7 +137,7 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
-// Test email service endpoint
+// Test email service endpoint with detailed debugging
 app.get('/api/test-email', async (req, res) => {
   try {
     const emailService = require('./services/emailService');
@@ -152,14 +152,53 @@ app.get('/api/test-email', async (req, res) => {
         host: process.env.EMAIL_HOST || 'not set',
         port: process.env.EMAIL_PORT || 'not set',
         user: process.env.EMAIL_USER ? 'set' : 'not set',
-        password: process.env.EMAIL_APP_PASSWORD ? 'set' : 'not set'
+        password: process.env.EMAIL_APP_PASSWORD ? 'set' : 'not set',
+        passwordLength: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.replace(/\s+/g, '').length : 0,
+        passwordFirst3: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.substring(0, 3) + '***' : 'not set'
       },
+      initError: emailService.initError,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({
       status: 'email test failed',
       error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test Gmail authentication directly
+app.get('/api/test-gmail', async (req, res) => {
+  try {
+    const nodemailer = require('nodemailer');
+    
+    // Create a simple Gmail transporter
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_APP_PASSWORD?.replace(/\s+/g, ''),
+      }
+    });
+
+    // Test the connection
+    const verified = await transporter.verify();
+    
+    res.json({
+      status: 'Gmail test',
+      connection: verified ? 'success' : 'failed',
+      user: process.env.EMAIL_USER ? process.env.EMAIL_USER.substring(0, 3) + '***' : 'not set',
+      passwordLength: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.replace(/\s+/g, '').length : 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({
+      status: 'Gmail test failed',
+      error: error.message,
+      code: error.code,
+      response: error.response,
       timestamp: new Date().toISOString()
     });
   }
