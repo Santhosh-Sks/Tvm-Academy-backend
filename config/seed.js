@@ -13,6 +13,7 @@ const seed = async () => {
       const defaultAdmin = {
         name: 'TVM Admin',
         email: 'admin@tvmacademy.com',
+        phone: '9999999999',
         password: 'Admin@123',
         role: 'admin',
         isEmailVerified: true // Admin is pre-verified
@@ -26,6 +27,7 @@ const seed = async () => {
       const admin = new User({
         name: defaultAdmin.name,
         email: defaultAdmin.email,
+        phone: defaultAdmin.phone,
         password: hashedPassword,
         role: defaultAdmin.role,
         isEmailVerified: defaultAdmin.isEmailVerified

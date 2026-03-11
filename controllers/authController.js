@@ -12,11 +12,11 @@ exports.register = async (req, res) => {
     JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT_SET'
   });
   
-  const { name, email, password } = req.body;
+  const { name, email, phone, password } = req.body;
   
-  if (!name || !email || !password) {
-    console.log('❌ Missing required fields:', { name: !!name, email: !!email, password: !!password });
-    return res.status(400).json({ message: 'Name, email and password are required' });
+  if (!name || !email || !phone || !password) {
+    console.log('❌ Missing required fields:', { name: !!name, email: !!email, phone: !!phone, password: !!password });
+    return res.status(400).json({ message: 'Name, email, phone and password are required' });
   }
 
   try {
@@ -63,6 +63,7 @@ exports.register = async (req, res) => {
     const user = new User({
       name,
       email: email.toLowerCase().trim(),
+      phone,
       password: hashedPassword,
       role: userRole,
       isEmailVerified: false

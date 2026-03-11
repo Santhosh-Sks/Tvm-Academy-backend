@@ -297,6 +297,7 @@ app.post('/api/test-register-real', async (req, res) => {
     const testUser = {
       name: 'Test User',
       email: 'test@example.com',
+      phone: '1234567890',
       password: 'Test123!'
     };
     
@@ -314,6 +315,7 @@ app.post('/api/test-register-real', async (req, res) => {
     const testUserObj = new User({
       name: testUser.name,
       email: testUser.email,
+      phone: testUser.phone,
       password: hashedPassword,
       role: 'user',
       isEmailVerified: false
