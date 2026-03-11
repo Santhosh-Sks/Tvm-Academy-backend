@@ -90,45 +90,69 @@ exports.register = async (req, res) => {
     await otpRecord.save();
     console.log('💾 OTP saved to database:', { id: otpRecord._id, email: otpRecord.email, otp: otpRecord.otp });
 
-    // Send verification email with fallback
+    // Send verification email with enhanced fallback
     console.log('📧 Attempting to send verification email...');
+    let emailSent = false;
+    let emailError = null;
+    
     try {
       await emailService.sendOTP(email, otpCode, name);
       console.log('✅ OTP email sent successfully');
-      
+      emailSent = true;
+    } catch (error) {
+      console.error('❌ Email sending failed:', error.message);
+      emailError = error;
+      emailSent = false;
+    }
+    
+    if (emailSent) {
+      // Email sent successfully - normal flow
       res.status(201).json({ 
         message: 'Registration initiated! Please check your email and verify your account with the OTP we sent.',
         requiresVerification: true,
-        email: email.replace(/(.{2}).*@/, '$1***@'), // Mask email for security
+        email: email.replace(/(.{2}).*@/, '$1***@'),
         userId: user._id
       });
+    } else {
+      // Email failed - use fallback strategy
+      console.log('⚠️ Email failed, using fallback strategy...');
       
-    } catch (emailError) {
-      console.error('❌ Email sending failed:', emailError.message);
+      // In production, we can either:
+      // 1. Auto-verify the user (bypass email verification)
+      // 2. Return error and clean up
       
-      // For testing: Allow registration without email verification
-      if (process.env.NODE_ENV === 'development' || process.env.SKIP_EMAIL_VERIFICATION === 'true') {
-        console.log('⚠️ Email failed but allowing registration (dev/test mode)');
+      const useEmailBypass = process.env.SKIP_EMAIL_VERIFICATION === 'true' || 
+                           process.env.NODE_ENV === 'development';
+      
+      if (useEmailBypass) {
+        console.log('✅ Auto-verifying user due to email service unavailability');
         
         // Mark user as verified and continue
         user.isEmailVerified = true;
         await user.save();
         
-        res.status(201).json({ 
-          message: 'Registration successful! (Email verification skipped for testing)',
-          requiresVerification: false,
-          warning: 'Email service unavailable - verification skipped',
-          userId: user._id
-        });
+        // Delete the OTP since we're bypassing verification
+        await OTP.deleteOne({ _id: otpRecord._id });
         
+        res.status(201).json({ 
+          message: 'Registration successful! Email verification was bypassed due to service unavailability.',
+          requiresVerification: false,
+          warning: 'Email service temporarily unavailable',
+          userId: user._id,
+          autoVerified: true
+        });
       } else {
-        console.log('❌ Email required in production, cleaning up user');
-        // In production, delete the user if email fails
+        // In strict production mode, require email
+        console.log('❌ Email required in production, cleaning up...');
+        
+        // Clean up created records
         await User.deleteOne({ _id: user._id });
         await OTP.deleteOne({ _id: otpRecord._id });
-        res.status(500).json({ 
-          message: 'Failed to send verification email. Please try again later.',
-          error: 'Email service temporarily unavailable'
+        
+        res.status(503).json({ 
+          message: 'Registration failed: Email service is temporarily unavailable. Please try again later.',
+          error: 'EMAIL_SERVICE_UNAVAILABLE',
+          details: emailError?.message || 'Unable to send verification email'
         });
       }
     }
