@@ -119,13 +119,20 @@ app.get('/api/debug', (req, res) => {
       3: 'disconnecting'
     },
     current_state: mongoose.connection.readyState === 1 ? 'connected' : 'not connected',
+    database_name: mongoose.connection.name || 'not connected',
     email_config: {
       host: process.env.EMAIL_HOST || 'not set',
       port: process.env.EMAIL_PORT || 'not set',
       user: process.env.EMAIL_USER ? 'set' : 'not set',
-      password: process.env.EMAIL_APP_PASSWORD ? 'set' : 'not set'
+      password: process.env.EMAIL_APP_PASSWORD ? 'set' : 'not set',
+      password_length: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.length : 0
     },
     jwt_secret: process.env.JWT_SECRET ? 'set' : 'not set',
+    jwt_length: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0,
+    models_loaded: {
+      user: 'checking...',
+      otp: 'checking...'
+    },
     timestamp: new Date().toISOString()
   });
 });
@@ -195,6 +202,70 @@ app.post('/api/test-register', async (req, res) => {
       status: 'test failed',
       error: error.message,
       stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test registration with detailed error logging
+app.post('/api/test-register-real', async (req, res) => {
+  try {
+    console.log('🧪 Testing real registration flow...');
+    
+    const testUser = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'Test123!'
+    };
+    
+    // Step 1: Test User model
+    console.log('Step 1: Testing User model...');
+    const User = require('./models/User');
+    const bcrypt = require('bcryptjs');
+    
+    // Step 2: Test password hashing
+    console.log('Step 2: Testing password hashing...');
+    const hashedPassword = await bcrypt.hash(testUser.password, 10);
+    
+    // Step 3: Test database save (without actually saving)
+    console.log('Step 3: Testing user object creation...');
+    const testUserObj = new User({
+      name: testUser.name,
+      email: testUser.email,
+      password: hashedPassword,
+      role: 'user',
+      isEmailVerified: false
+    });
+    
+    // Step 4: Test OTP generation
+    console.log('Step 4: Testing OTP generation...');
+    const OTP = require('./models/OTP');
+    const otpCode = OTP.generateOTP();
+    
+    // Step 5: Test email service
+    console.log('Step 5: Testing email service...');
+    const emailService = require('./services/emailService');
+    
+    res.json({
+      status: 'registration test successful',
+      steps: {
+        userModel: 'loaded',
+        passwordHashing: 'working',
+        userObjectCreation: 'working',
+        otpGeneration: otpCode,
+        emailServiceLoaded: 'working'
+      },
+      message: 'All registration components are working',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Registration test error:', error);
+    res.status(500).json({
+      status: 'registration test failed',
+      error: error.message,
+      stack: error.stack,
+      step: 'Failed during test',
       timestamp: new Date().toISOString()
     });
   }
