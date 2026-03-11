@@ -10,6 +10,14 @@ class EmailService {
   initialize() {
     try {
       console.log('📧 Initializing Email Service...');
+      
+      // Verify nodemailer is properly imported
+      if (!nodemailer || typeof nodemailer.createTransport !== 'function') {
+        console.log('🔍 Nodemailer object:', typeof nodemailer);
+        console.log('🔍 Available methods:', Object.keys(nodemailer || {}));
+        throw new Error('nodemailer.createTransport is not available');
+      }
+      
       console.log('Email Config:', {
         host: process.env.EMAIL_HOST || 'not set',
         port: process.env.EMAIL_PORT || 'not set',
@@ -28,19 +36,23 @@ class EmailService {
       const cleanPassword = process.env.EMAIL_APP_PASSWORD.replace(/\s+/g, '');
       console.log('🔑 Gmail app password length:', cleanPassword.length);
 
-      // Create Gmail transporter
+      // Create Gmail transporter with alternative configuration for Render
       this.transporter = nodemailer.createTransport({
-        service: 'gmail',
+        service: 'gmail', // Use service instead of host for better compatibility
         auth: {
           user: process.env.EMAIL_USER,
           pass: cleanPassword,
         },
         tls: {
           rejectUnauthorized: false
-        }
+        },
+        // Reduce timeouts for Render environment
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 15000, // 15 seconds  
+        socketTimeout: 30000, // 30 seconds
       });
 
-      console.log('✅ Email service initialized successfully');
+      console.log('✅ Email service initialized with Render-optimized config');
       this.initError = null;
     } catch (error) {
       console.error('❌ Email initialization error:', error.message);
@@ -58,22 +70,37 @@ class EmailService {
     }
 
     try {
-      // Test connection with timeout
+      // Test connection with longer timeout
+      console.log('📡 Testing Gmail SMTP connection...');
       const verifyPromise = this.transporter.verify();
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout after 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Connection timeout after 30 seconds')), 30000)
       );
 
-      await Promise.race([verifyPromise, timeoutPromise]);
-      console.log('✅ Email connection verified successfully');
+      const result = await Promise.race([verifyPromise, timeoutPromise]);
+      console.log('✅ Email connection verified successfully:', result);
       return true;
     } catch (error) {
       console.error('❌ Email verification failed:', {
         message: error.message,
         code: error.code,
-        response: error.response
+        response: error.response,
+        command: error.command,
+        errno: error.errno,
+        syscall: error.syscall
       });
-      return false;
+      
+      // Try creating a fresh transporter
+      console.log('🔄 Attempting to recreate transporter...');
+      try {
+        this.initialize();
+        const retryResult = await this.transporter.verify();
+        console.log('✅ Retry verification successful:', retryResult);
+        return true;
+      } catch (retryError) {
+        console.error('❌ Retry verification failed:', retryError.message);
+        return false;
+      }
     }
   }
 
@@ -84,6 +111,13 @@ class EmailService {
       const errorMsg = `Email service not available: ${this.initError}`;
       console.error('❌', errorMsg);
       throw new Error(errorMsg);
+    }
+
+    // First verify connection
+    console.log('🔍 Verifying connection before sending OTP...');
+    const connectionOk = await this.verifyConnection();
+    if (!connectionOk) {
+      throw new Error('Gmail SMTP connection failed - cannot send OTP');
     }
 
     const mailOptions = {
@@ -127,10 +161,11 @@ class EmailService {
     };
 
     try {
-      // Send email with timeout
+      console.log('📧 Sending email via Gmail SMTP...');
+      // Send email with longer timeout
       const sendPromise = this.transporter.sendMail(mailOptions);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), 30000)
+        setTimeout(() => reject(new Error('Email send timeout after 60 seconds')), 60000)
       );
 
       const info = await Promise.race([sendPromise, timeoutPromise]);
@@ -138,7 +173,9 @@ class EmailService {
       console.log('✅ OTP email sent successfully:', {
         messageId: info.messageId,
         to: email,
-        response: info.response
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
       });
       
       return info;
@@ -146,9 +183,24 @@ class EmailService {
       console.error('❌ Failed to send OTP email:', {
         error: error.message,
         code: error.code,
-        response: error.response
+        response: error.response,
+        command: error.command,
+        errno: error.errno,
+        syscall: error.syscall,
+        responseCode: error.responseCode
       });
-      throw new Error(`Failed to send OTP email: ${error.message}`);
+      
+      // Provide more specific error messages
+      let userFriendlyMessage = 'Failed to send OTP email';
+      if (error.code === 'EAUTH') {
+        userFriendlyMessage = 'Gmail authentication failed - please check app password';
+      } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+        userFriendlyMessage = 'Gmail connection timeout - please try again';
+      } else if (error.code === 'EMESSAGE') {
+        userFriendlyMessage = 'Email message rejected by Gmail';
+      }
+      
+      throw new Error(`${userFriendlyMessage}: ${error.message}`);
     }
   }
 

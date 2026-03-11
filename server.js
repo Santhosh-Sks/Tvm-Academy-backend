@@ -137,6 +137,35 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
+// Test Twilio SMS service
+app.get('/api/test-twilio', async (req, res) => {
+  try {
+    const twilioService = require('./services/twilioService');
+    
+    // Test Twilio connection
+    const connectionTest = await twilioService.verifyConnection();
+    
+    res.json({
+      status: 'twilio test',
+      connection: connectionTest ? 'success' : 'failed',
+      config: {
+        accountSid: process.env.TWILIO_ACCOUNT_SID ? process.env.TWILIO_ACCOUNT_SID.substring(0, 6) + '***' : 'not set',
+        authToken: process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'not set',
+        verifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID ? process.env.TWILIO_VERIFY_SERVICE_SID.substring(0, 6) + '***' : 'not set'
+      },
+      initError: twilioService.initError,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'twilio test failed',
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Test email service endpoint with detailed debugging
 app.get('/api/test-email', async (req, res) => {
   try {
@@ -169,33 +198,121 @@ app.get('/api/test-email', async (req, res) => {
   }
 });
 
-// Test Gmail authentication directly
+// Test Gmail authentication directly with detailed logging
 app.get('/api/test-gmail', async (req, res) => {
   try {
     const nodemailer = require('nodemailer');
     
+    console.log('🧪 Testing Gmail authentication with current config...');
+    console.log('📧 Email User:', process.env.EMAIL_USER);
+    console.log('🔑 Password Length:', process.env.EMAIL_APP_PASSWORD?.length);
+    console.log('📡 Host:', process.env.EMAIL_HOST);
+    console.log('⚡ Port:', process.env.EMAIL_PORT);
+    
     // Create a simple Gmail transporter
     const transporter = nodemailer.createTransport({
-      service: 'Gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_APP_PASSWORD?.replace(/\s+/g, ''),
+      },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+    });
+
+    console.log('🔍 Attempting Gmail verification...');
+    const startTime = Date.now();
+    
+    // Test the connection
+    const verified = await transporter.verify();
+    const endTime = Date.now();
+    
+    console.log('✅ Gmail verification successful in', endTime - startTime, 'ms');
+    
+    res.json({
+      status: 'Gmail test successful',
+      connection: 'verified',
+      user: process.env.EMAIL_USER ? process.env.EMAIL_USER.substring(0, 3) + '***' : 'not set',
+      passwordLength: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.replace(/\s+/g, '').length : 0,
+      verificationTime: endTime - startTime,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Gmail test failed:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      errno: error.errno,
+      syscall: error.syscall
+    });
+    
+    res.json({
+      status: 'Gmail test failed',
+      error: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      errno: error.errno,
+      syscall: error.syscall,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test simple email send (no verification, just attempt to send)
+app.post('/api/test-send-email', async (req, res) => {
+  try {
+    console.log('🧪 Testing simple email send...');
+    
+    const nodemailer = require('nodemailer');
+    
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_APP_PASSWORD?.replace(/\s+/g, ''),
       }
     });
 
-    // Test the connection
-    const verified = await transporter.verify();
+    const testEmail = {
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER, // Send to ourselves for testing
+      subject: '🧪 TVM Academy Email Test',
+      text: 'This is a test email from TVM Academy backend to verify Gmail SMTP is working on Render.',
+      html: '<p>✅ This is a test email from <strong>TVM Academy</strong> backend to verify Gmail SMTP is working on Render.</p>'
+    };
+
+    console.log('📤 Attempting to send test email...');
+    const startTime = Date.now();
+    
+    const info = await transporter.sendMail(testEmail);
+    const endTime = Date.now();
+    
+    console.log('✅ Test email sent successfully:', info);
     
     res.json({
-      status: 'Gmail test',
-      connection: verified ? 'success' : 'failed',
-      user: process.env.EMAIL_USER ? process.env.EMAIL_USER.substring(0, 3) + '***' : 'not set',
-      passwordLength: process.env.EMAIL_APP_PASSWORD ? process.env.EMAIL_APP_PASSWORD.replace(/\s+/g, '').length : 0,
+      status: 'success',
+      message: 'Test email sent successfully',
+      messageId: info.messageId,
+      response: info.response,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      sendTime: endTime - startTime,
       timestamp: new Date().toISOString()
     });
+    
   } catch (error) {
-    res.json({
-      status: 'Gmail test failed',
+    console.error('❌ Test email failed:', error);
+    
+    res.status(500).json({
+      status: 'failed',
       error: error.message,
       code: error.code,
       response: error.response,
@@ -364,8 +481,9 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       debug: '/api/debug',
+      'test-twilio': '/api/test-twilio',
       'test-email': '/api/test-email',
-      register: '/api/auth/register (POST)'
+      register: '/api/auth/register (POST - SMS OTP)'
     }
   });
 });

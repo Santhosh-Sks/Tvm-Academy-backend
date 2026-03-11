@@ -2,7 +2,7 @@ const User = require('../models/User');
 const OTP = require('../models/OTP');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const emailService = require('../services/emailService');
+const twilioService = require('../services/twilioService');
 
 exports.register = async (req, res) => {
   console.log('🚀 Register endpoint called with body:', req.body);
@@ -91,71 +91,33 @@ exports.register = async (req, res) => {
     await otpRecord.save();
     console.log('💾 OTP saved to database:', { id: otpRecord._id, email: otpRecord.email, otp: otpRecord.otp });
 
-    // Send verification email with enhanced fallback
-    console.log('📧 Attempting to send verification email...');
-    let emailSent = false;
-    let emailError = null;
+    // Send verification SMS - REQUIRED
+    console.log('� Attempting to send verification SMS...');
     
     try {
-      await emailService.sendOTP(email, otpCode, name);
-      console.log('✅ OTP email sent successfully');
-      emailSent = true;
-    } catch (error) {
-      console.error('❌ Email sending failed:', error.message);
-      emailError = error;
-      emailSent = false;
-    }
-    
-    if (emailSent) {
-      // Email sent successfully - normal flow
+      const smsResult = await twilioService.sendOTP(phone, name);
+      console.log('✅ OTP SMS sent successfully');
+      
+      // SMS sent successfully - normal flow
       res.status(201).json({ 
-        message: 'Registration initiated! Please check your email and verify your account with the OTP we sent.',
+        message: 'Registration initiated! Please check your phone and verify your account with the OTP we sent via SMS.',
         requiresVerification: true,
-        email: email.replace(/(.{2}).*@/, '$1***@'),
+        phone: phone.replace(/(\+\d{2})(\d{6})(\d+)/, '$1******$3'),
         userId: user._id
       });
-    } else {
-      // Email failed - use fallback strategy
-      console.log('⚠️ Email failed, using fallback strategy...');
+    } catch (error) {
+      console.error('❌ SMS sending failed:', error.message);
       
-      // In production, we can either:
-      // 1. Auto-verify the user (bypass email verification)
-      // 2. Return error and clean up
+      // Clean up created records since SMS is required
+      console.log('🗑️ Cleaning up user and OTP records due to SMS failure...');
+      await User.deleteOne({ _id: user._id });
+      await OTP.deleteOne({ _id: otpRecord._id });
       
-      const useEmailBypass = process.env.SKIP_EMAIL_VERIFICATION === 'true' || 
-                           process.env.NODE_ENV === 'development';
-      
-      if (useEmailBypass) {
-        console.log('✅ Auto-verifying user due to email service unavailability');
-        
-        // Mark user as verified and continue
-        user.isEmailVerified = true;
-        await user.save();
-        
-        // Delete the OTP since we're bypassing verification
-        await OTP.deleteOne({ _id: otpRecord._id });
-        
-        res.status(201).json({ 
-          message: 'Registration successful! Email verification was bypassed due to service unavailability.',
-          requiresVerification: false,
-          warning: 'Email service temporarily unavailable',
-          userId: user._id,
-          autoVerified: true
-        });
-      } else {
-        // In strict production mode, require email
-        console.log('❌ Email required in production, cleaning up...');
-        
-        // Clean up created records
-        await User.deleteOne({ _id: user._id });
-        await OTP.deleteOne({ _id: otpRecord._id });
-        
-        res.status(503).json({ 
-          message: 'Registration failed: Email service is temporarily unavailable. Please try again later.',
-          error: 'EMAIL_SERVICE_UNAVAILABLE',
-          details: emailError?.message || 'Unable to send verification email'
-        });
-      }
+      res.status(503).json({
+        message: 'Registration failed: Unable to send verification SMS. Please try again later.',
+        error: 'SMS_SERVICE_UNAVAILABLE',
+        details: process.env.NODE_ENV === 'development' ? error.message : 'SMS service temporarily unavailable'
+      });
     }
 
   } catch (err) {
@@ -183,88 +145,47 @@ exports.verifyRegistrationOTP = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedOTP = otp.toString().trim();
 
-    // Find the OTP record (get the most recent one)
-    console.log('🔍 Looking for OTP record:', { email: normalizedEmail, purpose: 'register' });
+    // Find the user account
+    console.log('🔍 Looking for user account:', { email: normalizedEmail });
     
-    const otpRecord = await OTP.findOne({ 
-      email: normalizedEmail, 
-      purpose: 'register',
-      verified: false 
-    }).sort({ createdAt: -1 }); // Get the most recent OTP
-
-    console.log('📋 OTP Record found:', otpRecord ? {
-      id: otpRecord._id,
-      email: otpRecord.email,
-      otp: otpRecord.otp,
-      attempts: otpRecord.attempts,
-      createdAt: otpRecord.createdAt,
-      purpose: otpRecord.purpose
-    } : 'NOT FOUND');
-
-    if (!otpRecord) {
-      console.log('❌ No OTP record found for verification');
-      return res.status(400).json({ message: 'Invalid or expired verification code' });
-    }
-
-    // Check if OTP is expired
-    const isExpired = otpRecord.isExpired();
-    console.log('⏰ OTP Expiry Check:', { isExpired, createdAt: otpRecord.createdAt, now: new Date() });
-    
-    if (isExpired) {
-      console.log('❌ OTP has expired, cleaning up...');
-      await OTP.deleteOne({ _id: otpRecord._id });
-      await User.deleteOne({ email: normalizedEmail, isEmailVerified: false });
-      return res.status(400).json({ message: 'Verification code has expired. Please register again.' });
-    }
-
-    // Check if too many attempts
-    console.log('🔢 Attempt Check:', { attempts: otpRecord.attempts, maxAttempts: 3 });
-    
-    if (otpRecord.attempts >= 3) {
-      console.log('❌ Too many attempts, cleaning up...');
-      await OTP.deleteOne({ _id: otpRecord._id });
-      await User.deleteOne({ email: normalizedEmail, isEmailVerified: false });
-      return res.status(400).json({ message: 'Too many failed attempts. Please register again.' });
-    }
-
-    // Verify OTP
-    const storedOTP = otpRecord.otp.toString().trim();
-    
-    console.log('🔐 OTP Comparison:', { 
-      provided: normalizedOTP, 
-      stored: storedOTP, 
-      match: normalizedOTP === storedOTP,
-      providedLength: normalizedOTP.length,
-      storedLength: storedOTP.length
-    });
-    
-    if (storedOTP !== normalizedOTP) {
-      console.log('❌ OTP mismatch, incrementing attempts...');
-      await otpRecord.incrementAttempts();
-      const remainingAttempts = 3 - (otpRecord.attempts + 1);
-      return res.status(400).json({ 
-        message: `Invalid verification code. ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining.` 
-      });
-    }
-
-    console.log('✅ OTP verified successfully, activating user...');
-
-    // OTP is correct - verify the user account
     const user = await User.findOne({ email: normalizedEmail, isEmailVerified: false });
-    console.log('👤 User lookup:', user ? {
+    console.log('� User lookup:', user ? {
       id: user._id,
       email: user.email,
       name: user.name,
+      phone: user.phone,
       isEmailVerified: user.isEmailVerified
     } : 'NOT FOUND');
     
     if (!user) {
-      console.log('❌ User account not found, cleaning up...');
-      await OTP.deleteOne({ _id: otpRecord._id });
+      console.log('❌ User account not found');
       return res.status(404).json({ message: 'User account not found. Please register again.' });
     }
 
-    // Mark user as verified
+    // Verify OTP using Twilio Verify API
+    console.log('🔐 Verifying OTP via Twilio for phone:', user.phone);
+    
+    try {
+      const verificationResult = await twilioService.verifyOTP(user.phone, normalizedOTP);
+      console.log('✅ Twilio verification result:', verificationResult);
+      
+      if (!verificationResult.valid) {
+        console.log('❌ Twilio OTP verification failed');
+        return res.status(400).json({ 
+          message: 'Invalid verification code. Please check the SMS and try again.' 
+        });
+      }
+      
+      console.log('✅ OTP verified successfully via Twilio, activating user...');
+      
+    } catch (error) {
+      console.error('❌ Twilio OTP verification error:', error.message);
+      return res.status(400).json({ 
+        message: 'Invalid or expired verification code. Please try again.' 
+      });
+    }
+
+    // OTP is correct - verify the user account
     console.log('✅ Marking user as verified...');
     console.log('👤 User role before verification:', user.role);
     user.isEmailVerified = true;
@@ -272,8 +193,8 @@ exports.verifyRegistrationOTP = async (req, res) => {
     await user.save();
     console.log('👤 User role after verification:', user.role);
 
-    // Delete the OTP record
-    await OTP.deleteOne({ _id: otpRecord._id });
+    // Clean up any old OTP records
+    await OTP.deleteMany({ email: normalizedEmail, purpose: 'register' });
 
     console.log('🎉 User verification complete, generating token...');
 
@@ -331,33 +252,26 @@ exports.resendRegistrationOTP = async (req, res) => {
       return res.status(404).json({ message: 'No pending registration found for this email address' });
     }
 
-    // Delete any existing OTPs for this email
-    await OTP.deleteMany({ email: normalizedEmail, purpose: 'register' });
+    console.log('🔄 Resending OTP via SMS for user:', { email: user.email, phone: user.phone });
 
-    // Generate new OTP
-    const otpCode = OTP.generateOTP();
-    console.log('🔄 Resending OTP:', otpCode, 'for email:', normalizedEmail);
-
-    // Save OTP to database
-    const otpRecord = new OTP({
-      email: normalizedEmail,
-      otp: otpCode,
-      purpose: 'register'
-    });
-
-    await otpRecord.save();
-
-    // Send verification email
-    const emailResult = await emailService.sendRegistrationOTP(normalizedEmail, otpCode, user.name);
-
-    if (emailResult.success) {
+    // Send verification SMS using Twilio
+    try {
+      const smsResult = await twilioService.sendOTP(user.phone, user.name);
+      console.log('✅ OTP SMS resent successfully');
+      
+      // Clean up any old OTP records (not needed for Twilio but good housekeeping)
+      await OTP.deleteMany({ email: normalizedEmail, purpose: 'register' });
+      
       res.json({ 
-        message: 'Verification code resent successfully',
-        email: normalizedEmail.replace(/(.{2}).*@/, '$1***@') // Mask email for security
+        message: 'Verification code resent successfully via SMS',
+        phone: user.phone.replace(/(\+\d{2})(\d{6})(\d+)/, '$1******$3') // Mask phone for security
       });
-    } else {
-      await OTP.deleteOne({ _id: otpRecord._id }); // Clean up if email fails
-      res.status(500).json({ message: 'Failed to resend verification code. Please try again.' });
+    } catch (error) {
+      console.error('❌ SMS resend failed:', error.message);
+      res.status(503).json({
+        message: 'Failed to resend verification SMS. Please try again later.',
+        error: 'SMS_SERVICE_UNAVAILABLE'
+      });
     }
 
   } catch (err) {
