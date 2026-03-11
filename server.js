@@ -204,6 +204,49 @@ app.get('/api/test-gmail', async (req, res) => {
   }
 });
 
+// Enable registration without email (for testing)
+app.post('/api/test-register-no-email', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const { name, email, password, phone } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already registered with this email' });
+    }
+
+    // Create user directly (bypass OTP)
+    const newUser = new User({
+      name,
+      email,
+      password, // Note: In production, hash this password
+      phone,
+      isVerified: true, // Skip email verification
+      role: 'student'
+    });
+
+    await newUser.save();
+
+    res.status(201).json({
+      message: 'Registration successful (email bypassed for testing)',
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Test registration error:', error);
+    res.status(500).json({ 
+      message: 'Registration failed', 
+      error: error.message 
+    });
+  }
+});
+
 // Test registration endpoint (no actual registration)
 app.post('/api/test-register', async (req, res) => {
   try {
