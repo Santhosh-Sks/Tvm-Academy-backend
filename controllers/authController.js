@@ -510,45 +510,29 @@ exports.requestPasswordReset = async (req, res) => {
     // Find user by email
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      // Don't reveal if user exists for security
-      return res.json({ message: 'If an account with this email exists, a password reset link has been sent.' });
+      // Don't reveal if user exists for security; respond the same as when SMS is sent
+      return res.json({ message: 'If an account with this email exists, a password reset OTP has been sent.', otpSent: true });
     }
 
     console.log('🔄 Password reset requested for:', email);
 
-    // Generate reset token (6-digit OTP)
-    const resetOTP = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetOTPExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    // Save reset OTP
-    await OTP.deleteMany({ email: email.toLowerCase().trim(), purpose: 'password-reset' });
-    const otpDoc = new OTP({
-      email: email.toLowerCase().trim(),
-      otp: resetOTP,
-      expiresAt: resetOTPExpiry,
-      purpose: 'password-reset'
-    });
-    await otpDoc.save();
-
-    // Send reset email
+    // Use Twilio Verify to send password reset OTP via SMS
     try {
-      await emailService.sendPasswordResetOTP(email, resetOTP, user.name);
-      console.log('📧 Password reset OTP sent to:', email);
-    } catch (emailError) {
-      console.error('Email sending failed:', emailError);
-      return res.status(500).json({ message: 'Failed to send reset email. Please try again.' });
+      await twilioService.sendPasswordResetOTP(user.phone, user.name);
+      console.log('📱 Password reset OTP sent via SMS to:', user.phone);
+      return res.json({ message: 'If an account with this email exists, a password reset OTP has been sent.', otpSent: true });
+    } catch (smsError) {
+      console.error('SMS sending failed:', smsError);
+      return res.status(500).json({ message: 'Failed to send reset OTP via SMS. Please try again.' });
     }
 
-    res.json({ 
-      message: 'If an account with this email exists, a password reset OTP has been sent.',
-      otpSent: true
-    });
   } catch (error) {
     console.error('Password reset request error:', error);
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 };
 
+// Replace verifyResetOTP to use Twilio Verify
 exports.verifyResetOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -557,38 +541,37 @@ exports.verifyResetOTP = async (req, res) => {
       return res.status(400).json({ message: 'Email and OTP are required' });
     }
 
-    // Find and verify OTP
-    const otpDoc = await OTP.findOne({
-      email: email.toLowerCase().trim(),
-      otp: otp.trim(),
-      purpose: 'password-reset'
-    });
-
-    if (!otpDoc) {
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Do not reveal details
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    if (otpDoc.expiresAt < new Date()) {
-      await OTP.deleteOne({ _id: otpDoc._id });
-      return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+    // Verify OTP using Twilio Verify
+    try {
+      const verification = await twilioService.verifyOTP(user.phone, otp.trim());
+      console.log('🔍 Twilio password-reset verification result:', verification);
+
+      if (!verification.valid) {
+        return res.status(400).json({ message: 'Invalid or expired OTP' });
+      }
+
+      // Generate a temporary reset token for password change
+      const resetToken = jwt.sign(
+        { email: user.email, purpose: 'password-reset' },
+        process.env.JWT_SECRET || 'secretkey',
+        { expiresIn: '10m' }
+      );
+
+      console.log('✅ Reset OTP verified for:', user.email);
+      return res.json({ message: 'OTP verified successfully. You can now reset your password.', resetToken });
+
+    } catch (verifyError) {
+      console.error('OTP verification failed:', verifyError);
+      return res.status(500).json({ message: 'Failed to verify OTP. Please try again.' });
     }
 
-    console.log('✅ Reset OTP verified for:', email);
-
-    // Generate a temporary reset token for password change
-    const resetToken = jwt.sign(
-      { email: email.toLowerCase().trim(), purpose: 'password-reset' },
-      process.env.JWT_SECRET || 'secretkey',
-      { expiresIn: '10m' }
-    );
-
-    // Delete the used OTP
-    await OTP.deleteOne({ _id: otpDoc._id });
-
-    res.json({ 
-      message: 'OTP verified successfully. You can now reset your password.',
-      resetToken
-    });
   } catch (error) {
     console.error('OTP verification error:', error);
     res.status(500).json({ message: 'Server error. Please try again.' });
