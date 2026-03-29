@@ -1,0 +1,478 @@
+.reports-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: 'Arial', sans-serif;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.reports-header h1 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.date-controls {
+  display: flex;
+  gap: 1rem;
+}
+
+.date-controls select {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e1e5e9;
+  border-radius: 5px;
+  background: white;
+  color: #2c3e50;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+.date-controls select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.reports-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  background: white;
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.reports-tabs button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 5px;
+  background: #ecf0f1;
+  color: #7f8c8d;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reports-tabs button:hover {
+  background: #d5dbdb;
+}
+
+.reports-tabs button.active {
+  background: #3498db;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.reports-content {
+  background: white;
+  border-radius: 10px;
+  padding: 2rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Dashboard Styles */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.stats-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  padding: 1.5rem;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px);
+}
+
+.stats-card:nth-child(2) {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stats-card:nth-child(3) {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.stats-card:nth-child(4) {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.stats-card:nth-child(5) {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.stat-icon {
+  font-size: 2.5rem;
+  opacity: 0.8;
+}
+
+.stat-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-content p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+
+.growth {
+  font-size: 0.8rem;
+  font-weight: bold;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.growth.positive {
+  color: #2ecc71;
+}
+
+.growth.negative {
+  color: #e74c3c;
+}
+
+/* Report Styles */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.report-header h3 {
+  color: #2c3e50;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.download-btn {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.3s ease;
+}
+
+.download-btn:hover {
+  background: #229954;
+}
+
+.report-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.summary-item strong {
+  color: #2c3e50;
+}
+
+/* Table Styles */
+.course-stats h4,
+.daily-trend h4,
+.monthly-breakdown h4,
+.popular-courses h4 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.course-stats-table {
+  overflow-x: auto;
+  margin-bottom: 2rem;
+}
+
+.course-stats-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.course-stats-table th,
+.course-stats-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.course-stats-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.course-stats-table tr:hover {
+  background: #f8f9fa;
+}
+
+/* Daily Trend */
+.trend-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.trend-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 2px solid #ecf0f1;
+  transition: border-color 0.3s ease;
+}
+
+.trend-item:hover {
+  border-color: #3498db;
+}
+
+.trend-day {
+  display: block;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.trend-enrollments {
+  display: block;
+  color: #3498db;
+  font-size: 0.9rem;
+}
+
+.trend-revenue {
+  display: block;
+  color: #27ae60;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+/* Monthly Grid */
+.monthly-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.monthly-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 2px solid #ecf0f1;
+  transition: all 0.3s ease;
+}
+
+.monthly-item:hover {
+  border-color: #3498db;
+  transform: translateY(-2px);
+}
+
+.monthly-item h5 {
+  margin: 0 0 0.5rem 0;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.monthly-item p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+
+/* Popular Courses */
+.popular-courses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.popular-course-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid #ecf0f1;
+  transition: all 0.3s ease;
+}
+
+.popular-course-item:hover {
+  border-color: #3498db;
+  transform: translateX(5px);
+}
+
+.course-rank {
+  background: #3498db;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.course-details strong {
+  color: #2c3e50;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.course-details p {
+  margin: 0;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+/* Loading and Error States */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: #7f8c8d;
+  font-size: 1.1rem;
+}
+
+.error {
+  background: #fee;
+  color: #c0392b;
+  padding: 1.5rem;
+  border-radius: 10px;
+  border-left: 4px solid #e74c3c;
+  margin-bottom: 1rem;
+}
+
+.error h3 {
+  margin: 0 0 1rem 0;
+  color: #c0392b;
+}
+
+.error-help {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 5px;
+  margin-top: 1rem;
+  color: #2c3e50;
+}
+
+.error-help h4 {
+  margin: 0 0 0.5rem 0;
+  color: #2c3e50;
+}
+
+.error-help ol {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+}
+
+.error-help li {
+  margin: 0.5rem 0;
+}
+
+.error-help code {
+  background: #ecf0f1;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #2c3e50;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .reports-container {
+    padding: 1rem;
+  }
+  
+  .reports-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .date-controls {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .reports-tabs {
+    flex-direction: column;
+  }
+  
+  .reports-tabs button {
+    text-align: center;
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .report-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .monthly-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .course-stats-table {
+    font-size: 0.9rem;
+  }
+}
