@@ -47,3 +47,5 @@ dist/
 ehthumbs.db
 Thumbs.db.history/
 server/.env
+.history/
+server/.env
