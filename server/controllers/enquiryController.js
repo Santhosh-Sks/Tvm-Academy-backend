@@ -1,13 +1,31 @@
-const Enquiry = require('../models/Enquiry');
-const Course = require('../models/Course');
-const User = require('../models/User');
-const Enrollment = require('../models/Enrollment');
+const Enquiry = require('../../models/Enquiry');
+const Course = require('../../models/Course');
+const User = require('../../models/User');
+const Enrollment = require('../../models/Enrollment');
 const crypto = require('crypto');
 
 exports.create = async (req, res) => {
   const { name, email, phone, course, message } = req.body;
   if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
-  
+
+  // Validate phone number if provided: normalize to Indian format +91XXXXXXXXXX
+  let cleanedPhone = null;
+  if (phone) {
+    let digits = String(phone).replace(/\D/g, '').trim();
+    // remove any leading zeros
+    digits = digits.replace(/^0+/, '');
+
+    if (digits.length === 10) {
+      // local Indian number, accept
+      cleanedPhone = '+91' + digits;
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+      // number provided with country code 91
+      cleanedPhone = '+91' + digits.slice(2);
+    } else {
+      return res.status(400).json({ message: 'Phone must be a valid Indian number (10 digits) or include country code 91' });
+    }
+  }
+
   try {
     let courseId = null;
     if (course) {
@@ -22,7 +40,7 @@ exports.create = async (req, res) => {
     const enq = new Enquiry({ 
       name, 
       email, 
-      phone, 
+      phone: cleanedPhone || phone, 
       course, 
       courseId, 
       message 
@@ -40,8 +58,8 @@ exports.create = async (req, res) => {
 exports.list = async (req, res) => {
   try {
     const enquiries = await Enquiry.find()
-      .populate('courseId') // Populate the courseId field
-      .sort({ createdAt: -1 }); // Sort by newest first
+      .populate('courseId') 
+      .sort({ createdAt: -1 }); 
     
     console.log(`Found ${enquiries.length} enquiries`);
     res.json(enquiries);
